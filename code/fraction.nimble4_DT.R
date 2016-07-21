@@ -1,8 +1,166 @@
+
+## NEW
+## using v0.5-1 of nimble, for consistancy
+remove.packages('nimble')
+install.packages('nimble', repos = 'http://r-nimble.org', type = 'source')
+
 ## Packages
 library(plyr)
 library(VGAM)
 library(nimble)
 library(igraph)
+
+## NEW
+## define a custom distribution for the determ/stoch multinomial
+dmultiSum <- nimbleFunction(
+    run = function(x = double(), prob = double(1), x1 = double(1), x2 = double(1), size = double(), log.p = double()) {
+        len <- dim(x1)[1]
+        data <- x1 + x2
+        logL <- dmulti(data[1:len], prob = prob[1:len], size = size, log = 1)
+        returnType(double())
+        return(logL)
+    }
+)
+
+## NEW
+## define a custom distribution for the determ/stoch multinomial
+rmultiSum <- nimbleFunction(
+    run = function(n = integer(), prob = double(1), x1 = double(1), x2 = double(1), size = double()) {
+        print('not implemented')
+        returnType(double())
+        return(1)
+    }
+)
+
+## NEW
+## register the new distribution with NIMBLE
+registerDistributions(list(
+    dmultiSum = list(
+        BUGSdist = 'dmultiSum(prob, x1, x2, size)',
+        types = c('prob = double(1)', 'x1 = double(1)', 'x2 = double(1)'),
+        discrete = TRUE
+    )
+))
+
+## NEW
+## we'll need this new sampler to sample the multnomial distribution for U[...].
+## previously it worked out of the box, since U had no dependencies so
+## a posterior_predictive sampler was used.
+sampler_RW_multinomial <- nimbleFunction( 
+    contains = sampler_BASE,
+    setup = function(model, mvSaved, target, control) {
+        adaptive      <- control$adaptive
+        adaptInterval <- control$adaptInterval
+        targetAsScalar <- model$expandNodeNames(target, returnScalarComponents = TRUE)
+        targetAllNodes <- unique(model$expandNodeNames(target))
+        calcNodes      <- model$getDependencies(target) 
+        lTarget        <- length(targetAsScalar)
+        Ntotal         <- sum(values(model,target))
+        NOverL         <- Ntotal / lTarget
+        Zeros             <- matrix(0, lTarget, lTarget)
+        Ones              <- matrix(1, lTarget, lTarget)
+        timesRan          <- Zeros
+        AcceptRates       <- Zeros
+        ScaleShifts       <- Zeros
+        totalAdapted      <- Zeros
+        timesAccepted     <- Zeros
+        ENSwapMatrix      <- Ones
+        ENSwapDeltaMatrix <- Ones
+        RescaleThreshold  <- 0.2 * Ones
+        lpProp  <- 0
+        lpRev   <- 0
+        Pi      <- pi 
+        PiOver2 <- Pi / 2 ## Irrational number prevents recycling becoming degenerate
+        u       <- runif(1, 0, Pi)
+        my_setAndCalculateDiff <- setAndCalculateDiff(model, target)
+        my_decideAndJump       <- decideAndJump(model, mvSaved, calcNodes)
+        if(model$getNodeDistribution(target) != 'dmulti')   stop('can only use RW_multinomial sampler for multinomial distributions')
+        if(length(targetAllNodes) > 1)                      stop('cannot use RW_multinomial sampler on more than one target')
+        if(adaptive & adaptInterval < 100)                  stop('adaptInterval < 100 is not recommended for RW_multinomial sampler')
+    },
+    run = function() {
+        for(iFROM in 1:lTarget) {            
+            for(iTO in 1:(lTarget-1)) {
+                if(u > PiOver2) {                
+                    iFrom <- iFROM
+                    iTo   <- iTO
+                    if (iFrom == iTo)
+                        iTo <- lTarget
+                    u <<- 2 * (u - PiOver2)   # recycle u
+                } else {
+                    iFrom <- iTO
+                    iTo   <- iFROM
+                    if (iFrom == iTo)
+                        iFrom <- lTarget
+                    u <<- 2 * (PiOver2 - u)   # recycle u
+                }
+                propValueVector <- generateProposalVector(iFrom, iTo)
+                lpMHR <- my_setAndCalculateDiff$run(propValueVector) + lpRev - lpProp 
+                jump  <- my_decideAndJump$run(lpMHR, 0, 0, 0) ## returns lpMHR + 0 - 0 + 0
+                if(adaptive)   adaptiveProcedure(jump=jump, iFrom=iFrom, iTo=iTo)
+            }
+        }
+    },
+    methods = list(
+        generateProposalVector = function(iFrom = integer(), iTo = integer()) { 
+            propVector <- values(model,target) 
+            pSwap      <- min(1, max(1, ENSwapMatrix[iFrom,iTo]) / propVector[iFrom]) 
+            nSwap      <- rbinom(n=1,   size=propVector[iFrom], prob=pSwap) 
+            lpProp    <<- dbinom(nSwap, size=propVector[iFrom], prob=pSwap, log=TRUE) 
+            propVector[iFrom] <- propVector[iFrom] - nSwap 
+            propVector[iTo]   <- propVector[iTo]   + nSwap 
+            pRevSwap   <- min(1, max(1, ENSwapMatrix[iTo,iFrom]) / (propVector[iTo] + nSwap)) 
+            lpRev     <<- dbinom(nSwap, size=propVector[iTo], prob=pRevSwap, log=TRUE) 
+            returnType(double(1)) 
+            return(propVector) 
+        },
+        adaptiveProcedure = function(jump=logical(), iFrom=integer(), iTo=integer()) {
+            NVector <- values(model,target) 
+            timesRan[iFrom, iTo] <<- timesRan[iFrom, iTo] + 1
+            if(jump)
+                timesAccepted[iFrom, iTo] <<- timesAccepted[iFrom, iTo] + 1
+            if (timesRan[iFrom, iTo] %% adaptInterval == 0) {
+                totalAdapted[iFrom, iTo] <<- totalAdapted[iFrom, iTo] + 1
+                accRate                   <- timesAccepted[iFrom, iTo] / timesRan[iFrom, iTo]
+                AcceptRates[iFrom, iTo]  <<- accRate
+                if (accRate > 0.5) {
+                    ENSwapMatrix[iFrom, iTo] <<-
+                        min(Ntotal,
+                            ENSwapMatrix[iFrom,iTo] + ENSwapDeltaMatrix[iFrom, iTo] / totalAdapted[iFrom,iTo])
+                } else {
+                    ENSwapMatrix[iFrom, iTo] <<-
+                        max(1,
+                            ENSwapMatrix[iFrom,iTo] - ENSwapDeltaMatrix[iFrom,iTo] / totalAdapted[iFrom,iTo])
+                } 
+                if(accRate<RescaleThreshold[iFrom,iTo] | accRate>(1-RescaleThreshold[iFrom,iTo])) {
+                    if (ENSwapMatrix[iFrom, iTo] > 1 & ENSwapMatrix[iFrom, iTo] < Ntotal) {
+                        ScaleShifts[iFrom, iTo]       <<- ScaleShifts[iFrom, iTo] + 1 
+                        ENSwapDeltaMatrix[iFrom, iTo] <<- min(NOverL, ENSwapDeltaMatrix[iFrom, iTo] * totalAdapted[iFrom,iTo] / 10)
+                        ENSwapDeltaMatrix[iTo, iFrom] <<- ENSwapDeltaMatrix[iFrom, iTo] 
+                        RescaleThreshold[iFrom,iTo]   <<- 0.2 * 0.95^ScaleShifts[iFrom, iTo]
+                    }
+                }
+                if(ENSwapMatrix[iFrom, iTo] < 1)
+                    ENSwapMatrix[iFrom, iTo] <<- 1                
+                ENSwapMatrix[iTo,iFrom]   <<- ENSwapMatrix[iFrom,iTo]
+                timesRan[iFrom, iTo]      <<- 0
+                timesAccepted[iFrom, iTo] <<- 0
+            }
+        },
+        reset = function() {
+            timesRan          <<- Zeros
+            AcceptRates       <<- Zeros
+            ScaleShifts       <<- Zeros
+            totalAdapted      <<- Zeros
+            timesAccepted     <<- Zeros
+            ENSwapMatrix      <<- Ones
+            ENSwapDeltaMatrix <<- Ones
+            RescaleThreshold  <<- 0.2 * Ones
+        }
+    ), where = getLoadingNamespace()
+)
+
+
 
 ## Import data
 mdata <- read.csv('mortalities.simulated.April.pDet.const.csv')
@@ -21,7 +179,7 @@ causes2 <- c('watercraft', 'wcs', 'debris', 'cold', 'other', 'redtide')
 full.causes2 <- c(causes2, 'undetermined')
 ## Age classes
 classes = c('Calves', 'Subadults', 'Adults')
-classes2 <- c('Calves1', 'Calves2', 'Subadults', 'Adults')
+##classes2 <- c('Calves1', 'Calves2', 'Subadults', 'Adults')  ## nowhere used -DT
 nClasses <- length(classes)
 severities <- c('Normal', 'Cold', 'Severe')
 nSeverities <- length(severities)
@@ -62,12 +220,15 @@ intTideYears
 tideYears
 
 ## Cold and severe years
-coldDesignations <- matrix(c('Cold', rep('Normal', 4), 'Cold', 'Normal', 'Cold', rep('Normal', 6), 'Severe', rep('Normal', 3),
-                             'Cold', rep('Normal', 4), 'Cold', rep('Normal', 7), 'Cold', 'Severe', 'Cold', rep('Normal', 2),
-                             'Cold', 'Normal', 'Cold', 'Normal', 'Normal', 'Cold', 'Normal', 'Severe', rep('Normal', 6), 'Severe', 'Cold', rep('Normal', 2),
-                             'Cold', rep('Normal', 4), 'Cold', rep('Normal', 8), 'Severe', rep('Normal', 3)),
-                           nYears, nRegions, dimnames = list(STARTYEAR:ENDYEAR, regions))
+coldDesignations <- matrix(c(
+    'Cold', rep('Normal', 4), 'Cold', 'Normal', 'Cold', rep('Normal', 6), 'Severe', rep('Normal', 3),
+    'Cold', rep('Normal', 4), 'Cold', rep('Normal', 7), 'Cold', 'Severe', 'Cold', rep('Normal', 2),
+    'Cold', 'Normal', 'Cold', 'Normal', 'Normal', 'Cold', 'Normal', 'Severe', rep('Normal', 6), 'Severe', 'Cold', rep('Normal', 2),
+    'Cold', rep('Normal', 4), 'Cold', rep('Normal', 8), 'Severe', rep('Normal', 3)),
+                           nYears, nRegions,
+                           dimnames = list(STARTYEAR:ENDYEAR, regions))
 coldDesignations
+
 coldYears <- matrix(as.integer(factor(coldDesignations, levels = severities)), 
                     nYears, nRegions,
                     dimnames = list(STARTYEAR:ENDYEAR, regions))
@@ -75,13 +236,17 @@ coldYears <- matrix(as.integer(factor(coldDesignations, levels = severities)),
 ## Uninformative priors for proportions
 prior1 <- array(1, c(nClasses, nRegions, nCauses))
 dimnames(prior1) <- list(classes, regions, causes2)
+
 ## I haven't figured out how to fix this at zero in NIMBLE, but giving it a prior close to zero might work okay
 prior1[,'USJ','redtide'] <- 0.001
+prior1
+
 rdirch(1, prior1['Calves','USJ',])
 
 ## Move from data frame to array
 data.array <- array(NA, c(nYears, nClasses, nRegions, nHabitats, nCauses + 1))
 dimnames(data.array) <- list(STARTYEAR:ENDYEAR, classes, regions, habitats, full.causes2)
+
 for (class in classes) {
     for (region in regions) {
         for (qual in habitats) 
@@ -89,8 +254,11 @@ for (class in classes) {
     }
 }
 
+##########################################
+##### Full model #########################
+##########################################
+
 fraction.code4 <- nimbleCode({
-    
     ## Red tide effect factors and additional mortality
     tide_mort[1] <- 0
     tide_mort[2] ~ dunif(0, 1-baseMort[SW])
@@ -101,22 +269,21 @@ fraction.code4 <- nimbleCode({
     ##   tideFactor[1] <- 0
     ##   tideFactor[2] <- tide_mort[2] / baseMort[SW]
     ##   tideFactor[3] <- tide_mort[3] / baseMort[SW]
-                                        # 
+    ## 
     ## Cold effect additional mortality
     cold_mort[1, 1] ~ dunif(0, 1-baseMort[1]) # Low normal
     cold_mort[2, 1] ~ dunif(0, 1-baseMort[1]) # Medium normal
-    cold_mort[3, 1] <- 0                        # High normal
+    cold_mort[3, 1] <- 0                      # High normal
     cold_mort[1, 2] ~ dunif(0, 1-baseMort[1]) # Low cold
     cold_mort[2, 2] ~ dunif(0, 1-baseMort[1]) # Medium cold
-    cold_mort[3, 2] <- 0                        # High cold
+    cold_mort[3, 2] <- 0                      # High cold
     cold_mort[1, 3] ~ dunif(0, 1-baseMort[1]) # Low severe
     cold_mort[2, 3] ~ dunif(0, 1-baseMort[1]) # Medium severe
     cold_mort[3, 3] ~ dunif(0, 1-baseMort[1]) # High severe
-    
-    
+    ##
     ## Loop over regions
     for (area in 1:nRegions) {
-        
+        ##
         ## Proportions of mortality for region area
         for (cause in 1:nCauses) {
             pi0[cause, area] ~ dgamma(prior1[area,cause], 1.0)
@@ -126,7 +293,7 @@ fraction.code4 <- nimbleCode({
         pi[1:nCauses,area] <- pi0[1:nCauses,area] / sum(pi0[1:nCauses,area])
         ## Undetermined
         p[1:nCauses, area] <- p0[1:nCauses,area] / sum(p0[1:nCauses,area])
-        
+        ##
         for (habitat in 1:nHabitats) {
             ## Loop over years
             for (year in 1:nYears) {
@@ -139,54 +306,49 @@ fraction.code4 <- nimbleCode({
                 ## X[year,area,habitat,1:nCauses] <- data1[year,area,habitat,1:nCauses] + U[year,area,habitat,1:nCauses] AND
                 ## X[year,area,habitat,1:nCauses] ~ dmulti(prob = theta[year,area,habitat,1:nCauses], size = totals[year,area,habitat])
                 ## with totals redefined to include undetermined carcasses
-                data1[year,area,habitat,1:nCauses] ~ dmulti(prob = theta[year,area,habitat,1:nCauses],
-                                                            size = totals[year,area,habitat])
+                ##data1[year,area,habitat,1:nCauses] ~ dmulti(prob = theta[year,area,habitat,1:nCauses],
+                ##                                            size = totals[year,area,habitat])
                 ## Undetermined carcasses due to each cause
                 U[year,area,habitat,1:nCauses] ~ dmulti(prob = p[1:nCauses, area],
                                                         size = undet[year,area,habitat])
+                ## NEW
+                ## use of custom distribution:
+                zeros[year,area,habitat] ~ dmultiSum(prob = theta[year,area,habitat,1:nCauses],
+                                                     x1 = data1[year,area,habitat,1:nCauses],
+                                                     x2 = U[year,area,habitat,1:nCauses],
+                                                     size = totals[year,area,habitat])
             }
         }
     }
 })
 
 
-## This very simplified version of the model (and other ones where pi isn't
-## modified into theta) seem to work fine.
-det.code1 <- nimbleCode({
-    ## Loop over regions
-    for (area in 1:nRegions) {
-        
-        ## Proportions of mortality for region area
-        pi[1:nCauses,area] ~ ddirch(alpha = prior1[age_class,area,1:nCauses])
-        
-        for (habitat in 1:nHabitats) {
-            ## Loop over years
-            for (year in 1:nYears) {
-                ## Multinomial number of carcasses due to each cause
-                data1[year,area,habitat,1:nCauses] ~ dmulti(prob = pi[1:nCauses,area],
-                                                            size = totals[year,area,habitat])
-            }
-        }
-    }
-})
+data.fraction.calf4 <- list(
+    data1 = data.array[ , 'Calves', , , 1:nCauses],
+    nCauses = nCauses,
+    nRegions = nRegions, 
+    nYears = nYears,
+    nSeverities = nSeverities,
+    nHabitats = nHabitats,
+    SW = 4,
+    tideVector = c(0, 0, 0, 0, 0, 1),
+    coldVector = c(0, 0, 0, 1, 0, 0),
+    prior1 = prior1['Calves', , ], 
+    tideYears = tideYears,
+    coldYears = coldYears,
+    ## NEW
+    ##totals = apply(data.array[ , 'Calves', , , 1:nCauses], 1:3, sum),
+    totals = apply(data.array[ , 'Calves', , , 1:(nCauses+1)], 1:3, sum), 
+    baseMort = as.vector(base.mort[,'Calves']),
+    undet = data.array[ , 'Calves', , , 1 + nCauses]
+)
 
+## NEW
+data <- list(
+    zeros = array(0, c(nYears,nRegions,nHabitats))
+)
 
-## Data structures for Nimble
-data.fraction.calf4 <- list(data1=data.array[ , 'Calves', , , 1:nCauses], nCauses=nCauses, nRegions=nRegions, 
-                            nYears = nYears, nSeverities = nSeverities, nHabitats = nHabitats,
-                            SW = 4, tideVector = c(0, 0, 0, 0, 0, 1), coldVector = c(0, 0, 0, 1, 0, 0),
-                            prior1 = prior1['Calves', , ], 
-                            tideYears = tideYears, coldYears = coldYears,
-                            totals = apply(data.array[ , 'Calves', , , 1:nCauses], 1:3, sum), 
-                            baseMort = as.vector(base.mort[,'Calves']),
-                            undet = data.array[ , 'Calves', , , 1 + nCauses])
-data.det.calf <- list(data1=data.array[, 'Calves', , , 1:nCauses], nCauses=nCauses, nRegions=nRegions, 
-                      nYears = nYears, nSeverities = nSeverities, nHabitats = nHabitats,
-                      age_class = CALF, prior1 = prior1, 
-                      totals = apply(data.array[ , 'Calves', , , 1:nCauses], 1:3, sum)) 
-
-
-inits.calf4 <- function(){
+inits.calf4 <- function() {
     p <- pi <- matrix(0, nCauses, nRegions)
     dimnames(p) <- dimnames(pi) <- list(causes2, regions)
     U <- array(NA, c(nYears, nRegions, nHabitats, nCauses))
@@ -243,45 +405,35 @@ inits.calf4 <- function(){
          tide_mort = tide_mort, cold_mort = cold_mort) 
 }
 
-inits.det.calf <- function(){
-    pi <- matrix(0, nCauses, nRegions)
-    dimnames(pi) <- list(causes2, regions)
-    for (region in regions) {
-        pi[,region] <- rdiric(1, apply(data.array[ ,'Calves',region, , 1:nCauses], 3, sum)+1)
-    }
-    list(pi = pi) 
-}
 
+## NEW now uses 'data' also
 ## Nimble model
-inits4 <- inits.calf4()
-fraction.model4 <- nimbleModel(fraction.code4, constants = data.fraction.calf4,
-                               inits = inits4)
+fraction.model4 <- nimbleModel(fraction.code4, constants = data.fraction.calf4, data = data, inits = inits.calf4())
 
 fraction.comp4 <- compileNimble(fraction.model4)
 
 ## Configure, set up, and compile MCMC
 fraction.mcmcConf4 <- configureMCMC(fraction.model4)
 fraction.mcmcConf4$printSamplers()
-## I've tried some different options for sampling.  So far the most I can do is
-## spread the problem from pi to other variables (see commented code below).
-## fraction.mcmcConf3$removeSamplers('tide_mort')
-## fraction.mcmcConf3$removeSamplers('pi')
-## fraction.mcmcConf3$removeSamplers('cold_mort')
-## fraction.model3$expandNodeNames('tide_mort')
-## fraction.mcmcConf3$addSampler(type = 'RW_block', 
-##                               target = c(fraction.model3$expandNodeNames('tide_mort'),
-##                                          fraction.model3$expandNodeNames('pi'),
-##                                          fraction.model3$expandNodeNames('cold_mort')))
-## fraction.mcmcConf3$printSamplers()
+
+## NEW
+## this is necessary, too, to assign the RW_multinomial samplers:
+fraction.mcmcConf4$removeSamplers('U')
+for(node in fraction.model4$expandNodeNames('U'))
+    fraction.mcmcConf4$addSampler(target = node, type = 'RW_multinomial')
+
+fraction.mcmcConf4$printSamplers()
+
 fraction.mcmcConf4$getMonitors()
 fraction.mcmcConf4$addMonitors('pi')
 fraction.mcmcConf4$addMonitors('p')
 
 fractionMCMC4 <- buildMCMC(fraction.mcmcConf4)
-CfractionMCMC4 <- compileNimble(fractionMCMC4, project = fraction.model4, resetFunctions = T)
+CfractionMCMC4 <- compileNimble(fractionMCMC4, project = fraction.model4, resetFunctions = TRUE)
 
 ## Run the model
-print(system.time(CfractionMCMC4$run(10000)))
+print(system.time(CfractionMCMC4$run(1000)))   ## this took 1 minute on my Macbook
+print(system.time(CfractionMCMC4$run(10000)))  ## presumably, this will take 10 minutes
 
 ## Examine results
 sample.mat <- as.matrix(CfractionMCMC4$mvSamples)
@@ -291,10 +443,55 @@ summary(sample.mat)
 summary(rowSums(sample.mat[,c('pi[1, 1]', 'pi[2, 1]', 'pi[3, 1]', 'pi[4, 1]', 'pi[5, 1]', 'pi[6, 1]')]))
 summary(rowSums(sample.mat[,c('pi[1, 2]', 'pi[2, 2]', 'pi[3, 2]', 'pi[4, 2]', 'pi[5, 2]', 'pi[6, 2]')]))
 
-## Much simpler model
-det.model1 <- nimbleModel(det.code1, constants = data.det.calf,
-                          inits = inits.det.calf(),
-                          dimensions = list(pi = c(nCauses, nRegions)))
+
+
+
+
+##########################################
+##### Much simpler model #################
+##########################################
+
+## This very simplified version of the model (and other ones where pi isn't
+## modified into theta) seem to work fine.
+det.code1 <- nimbleCode({
+    ## Loop over regions
+    for (area in 1:nRegions) {
+        ##
+        ## Proportions of mortality for region area
+        pi[1:nCauses,area] ~ ddirch(alpha = prior1[age_class,area,1:nCauses])
+        ##
+        for (habitat in 1:nHabitats) {
+            ## Loop over years
+            for (year in 1:nYears) {
+                ## Multinomial number of carcasses due to each cause
+                data1[year,area,habitat,1:nCauses] ~ dmulti(prob = pi[1:nCauses,area],
+                                                            size = totals[year,area,habitat])
+            }
+        }
+    }
+})
+
+data.det.calf <- list(
+    data1 = data.array[, 'Calves', , , 1:nCauses],
+    nCauses = nCauses,
+    nRegions = nRegions, 
+    nYears = nYears,
+    nSeverities = nSeverities,
+    nHabitats = nHabitats,
+    age_class = CALF,
+    prior1 = prior1, 
+    totals = apply(data.array[ , 'Calves', , , 1:nCauses], 1:3, sum))
+
+inits.det.calf <- function(){
+    pi <- matrix(0, nCauses, nRegions)
+    dimnames(pi) <- list(causes2, regions)
+    for (region in regions) {
+        pi[,region] <- rdiric(1, apply(data.array[ ,'Calves',region, , 1:nCauses], 3, sum)+1)
+    }
+    list(pi = pi) 
+}
+
+det.model1 <- nimbleModel(det.code1, constants = data.det.calf, inits = inits.det.calf(), dimensions = list(pi = c(nCauses, nRegions)))
 
 det.comp1 <- compileNimble(det.model1)
 
@@ -302,6 +499,6 @@ mcmcConf <- configureMCMC(det.model1)
 mcmcConf$printSamplers()
 detMCMC <- buildMCMC(mcmcConf)
 CdetMCMC <- compileNimble(detMCMC, project = det.model1)
-CdetMCMC$run(50000)
+CdetMCMC$run(10000)
 summary(as.matrix(CdetMCMC$mvSamples))
 
