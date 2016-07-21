@@ -13,9 +13,10 @@ library(igraph)
 ## NEW
 ## define a custom distribution for the determ/stoch multinomial
 dmultiSum <- nimbleFunction(
-    run = function(x = double(), prob = double(1), x1 = double(1), x2 = double(1), size = double(), log.p = double()) {
+    run = function(x = double(), prob = double(1), x1 = double(1), x2 = double(1), log.p = double()) {
         len <- dim(x1)[1]
         data <- x1 + x2
+        size <- sum(data)
         logL <- dmulti(data[1:len], prob = prob[1:len], size = size, log = 1)
         returnType(double())
         return(logL)
@@ -25,7 +26,7 @@ dmultiSum <- nimbleFunction(
 ## NEW
 ## define a custom distribution for the determ/stoch multinomial
 rmultiSum <- nimbleFunction(
-    run = function(n = integer(), prob = double(1), x1 = double(1), x2 = double(1), size = double()) {
+    run = function(n = integer(), prob = double(1), x1 = double(1), x2 = double(1)) {
         print('not implemented')
         returnType(double())
         return(1)
@@ -36,7 +37,7 @@ rmultiSum <- nimbleFunction(
 ## register the new distribution with NIMBLE
 registerDistributions(list(
     dmultiSum = list(
-        BUGSdist = 'dmultiSum(prob, x1, x2, size)',
+        BUGSdist = 'dmultiSum(prob, x1, x2)',
         types = c('prob = double(1)', 'x1 = double(1)', 'x2 = double(1)'),
         discrete = TRUE
     )
@@ -315,8 +316,7 @@ fraction.code4 <- nimbleCode({
                 ## use of custom distribution:
                 zeros[year,area,habitat] ~ dmultiSum(prob = theta[year,area,habitat,1:nCauses],
                                                      x1 = data1[year,area,habitat,1:nCauses],
-                                                     x2 = U[year,area,habitat,1:nCauses],
-                                                     size = totals[year,area,habitat])
+                                                     x2 = U[year,area,habitat,1:nCauses])
             }
         }
     }
