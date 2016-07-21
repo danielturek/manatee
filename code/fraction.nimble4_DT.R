@@ -70,7 +70,7 @@ sampler_RW_multinomial <- nimbleFunction(
         lpProp  <- 0
         lpRev   <- 0
         Pi      <- pi 
-        PiOver2 <- Pi / 2 ## Irrational number prevents recycling becoming degenerate
+        PiOver2 <- Pi / 2
         u       <- runif(1, 0, Pi)
         my_setAndCalculateDiff <- setAndCalculateDiff(model, target)
         my_decideAndJump       <- decideAndJump(model, mvSaved, calcNodes)
@@ -86,17 +86,17 @@ sampler_RW_multinomial <- nimbleFunction(
                     iTo   <- iTO
                     if (iFrom == iTo)
                         iTo <- lTarget
-                    u <<- 2 * (u - PiOver2)   # recycle u
+                    u <<- 2 * (u - PiOver2)
                 } else {
                     iFrom <- iTO
                     iTo   <- iFROM
                     if (iFrom == iTo)
                         iFrom <- lTarget
-                    u <<- 2 * (PiOver2 - u)   # recycle u
+                    u <<- 2 * (PiOver2 - u)
                 }
                 propValueVector <- generateProposalVector(iFrom, iTo)
                 lpMHR <- my_setAndCalculateDiff$run(propValueVector) + lpRev - lpProp 
-                jump  <- my_decideAndJump$run(lpMHR, 0, 0, 0) ## returns lpMHR + 0 - 0 + 0
+                jump  <- my_decideAndJump$run(lpMHR, 0, 0, 0)
                 if(adaptive)   adaptiveProcedure(jump=jump, iFrom=iFrom, iTo=iTo)
             }
         }
@@ -239,14 +239,14 @@ dimnames(prior1) <- list(classes, regions, causes2)
 
 ## I haven't figured out how to fix this at zero in NIMBLE, but giving it a prior close to zero might work okay
 prior1[,'USJ','redtide'] <- 0.001
-prior1
-
+set.seed(0)
 rdirch(1, prior1['Calves','USJ',])
+## [1]  4.235806e-01   6.995631e-02  1.978423e-02  1.976712e-01  2.890076e-01
+## [6]  8.603148e-115
 
 ## Move from data frame to array
 data.array <- array(NA, c(nYears, nClasses, nRegions, nHabitats, nCauses + 1))
 dimnames(data.array) <- list(STARTYEAR:ENDYEAR, classes, regions, habitats, full.causes2)
-
 for (class in classes) {
     for (region in regions) {
         for (qual in habitats) 
@@ -405,11 +405,14 @@ inits.calf4 <- function() {
          tide_mort = tide_mort, cold_mort = cold_mort) 
 }
 
+set.seed(0)
+inits <- inits.calf4()
+inits$tide_mort
+## [1] 0.00000000 0.06519409 0.24907371
 
 ## NEW now uses 'data' also
 ## Nimble model
-fraction.model4 <- nimbleModel(fraction.code4, constants = data.fraction.calf4, data = data, inits = inits.calf4())
-
+fraction.model4 <- nimbleModel(fraction.code4, constants = data.fraction.calf4, data = data, inits = inits)
 fraction.comp4 <- compileNimble(fraction.model4)
 
 ## Configure, set up, and compile MCMC
@@ -432,11 +435,16 @@ fractionMCMC4 <- buildMCMC(fraction.mcmcConf4)
 CfractionMCMC4 <- compileNimble(fractionMCMC4, project = fraction.model4, resetFunctions = TRUE)
 
 ## Run the model
+set.seed(0)
 print(system.time(CfractionMCMC4$run(1000)))   ## this took 1 minute on my Macbook
-print(system.time(CfractionMCMC4$run(10000)))  ## presumably, this will take 10 minutes
+##print(system.time(CfractionMCMC4$run(10000)))  ## presumably, this will take 10 minutes
 
 ## Examine results
 sample.mat <- as.matrix(CfractionMCMC4$mvSamples)
+as.numeric(sample.mat[100,100:108])
+## [1] 1.75483480 0.09101431 0.01218549 4.66106256 2.11493586 0.82764299 0.00000000
+## [8] 0.05339126 0.07394997
+
 summary(sample.mat)
 
 ## Yes, these still sum to 1
