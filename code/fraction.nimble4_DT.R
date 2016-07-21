@@ -22,7 +22,7 @@ dmultiSum <- nimbleFunction(
         return(logL)
     }
 )
-
+##
 ## NEW
 ## define a custom distribution for the determ/stoch multinomial
 rmultiSum <- nimbleFunction(
@@ -32,7 +32,7 @@ rmultiSum <- nimbleFunction(
         return(1)
     }
 )
-
+##
 ## NEW
 ## register the new distribution with NIMBLE
 registerDistributions(list(
@@ -42,7 +42,7 @@ registerDistributions(list(
         discrete = TRUE
     )
 ))
-
+##
 ## NEW
 ## we'll need this new sampler to sample the multnomial distribution for U[...].
 ## previously it worked out of the box, since U had no dependencies so
@@ -161,8 +161,6 @@ sampler_RW_multinomial <- nimbleFunction(
     ), where = getLoadingNamespace()
 )
 
-
-
 ## Import data
 mdata <- read.csv('mortalities.simulated.April.pDet.const.csv')
 ## FL regions
@@ -184,28 +182,27 @@ classes = c('Calves', 'Subadults', 'Adults')
 nClasses <- length(classes)
 severities <- c('Normal', 'Cold', 'Severe')
 nSeverities <- length(severities)
-
+##
 ## Baseline mortality 
 base.mort <- array(c(0.123000, 0.093000, 0.100000, 0.103000, 
                      0.027417, 0.020739, 0.022355, 0.023073,
                      0.027417, 0.020739, 0.022355, 0.023073),
                    dim = c(nRegions, nClasses),
                    dimnames = list(regions, classes))
-
+##
 data <- transform(mdata,
                   area    = factor(area,    levels = regions),
                   age     = factor(age,     levels = classes),
                   habitat = factor(habitat, levels = habitats))
-
-
+##
 ## Constants
-CALF <- 1
-SUBADULT <- 2
-ADULT <- 3
+## CALF <- 1       ## not used anywhere
+## SUBADULT <- 2   ##
+## ADULT <- 3      ##
 STARTYEAR <- 1996
 ENDYEAR <- 2013
 nYears <- ENDYEAR - STARTYEAR + 1
-
+##
 ## Moderate and intense red tide years
 mod_tide_years <- c(2002, 2003, 2005, 2006, 2012)
 int_tide_years <- c(1996, 2013)
@@ -219,7 +216,7 @@ tideYears[as.character(int_tide_years)] <- 3
 modTideYears
 intTideYears
 tideYears
-
+##
 ## Cold and severe years
 coldDesignations <- matrix(c(
     'Cold', rep('Normal', 4), 'Cold', 'Normal', 'Cold', rep('Normal', 6), 'Severe', rep('Normal', 3),
@@ -229,22 +226,22 @@ coldDesignations <- matrix(c(
                            nYears, nRegions,
                            dimnames = list(STARTYEAR:ENDYEAR, regions))
 coldDesignations
-
+##
 coldYears <- matrix(as.integer(factor(coldDesignations, levels = severities)), 
                     nYears, nRegions,
                     dimnames = list(STARTYEAR:ENDYEAR, regions))
-
+##
 ## Uninformative priors for proportions
 prior1 <- array(1, c(nClasses, nRegions, nCauses))
 dimnames(prior1) <- list(classes, regions, causes2)
-
+##
 ## I haven't figured out how to fix this at zero in NIMBLE, but giving it a prior close to zero might work okay
 prior1[,'USJ','redtide'] <- 0.001
 set.seed(0)
 rdirch(1, prior1['Calves','USJ',])
 ## [1]  4.235806e-01   6.995631e-02  1.978423e-02  1.976712e-01  2.890076e-01
 ## [6]  8.603148e-115
-
+##
 ## Move from data frame to array
 data.array <- array(NA, c(nYears, nClasses, nRegions, nHabitats, nCauses + 1))
 dimnames(data.array) <- list(STARTYEAR:ENDYEAR, classes, regions, habitats, full.causes2)
@@ -322,7 +319,6 @@ fraction.code4 <- nimbleCode({
     }
 })
 
-
 data.fraction.calf4 <- list(
     data1 = data.array[ , 'Calves', , , 1:nCauses],
     nCauses = nCauses,
@@ -337,17 +333,16 @@ data.fraction.calf4 <- list(
     tideYears = tideYears,
     coldYears = coldYears,
     ## NEW
-    ##totals = apply(data.array[ , 'Calves', , , 1:nCauses], 1:3, sum),
-    totals = apply(data.array[ , 'Calves', , , 1:(nCauses+1)], 1:3, sum), 
+    ##totals = apply(data.array[ , 'Calves', , , 1:nCauses], 1:3, sum),  ## no longer necessary
     baseMort = as.vector(base.mort[,'Calves']),
     undet = data.array[ , 'Calves', , , 1 + nCauses]
 )
-
+##
 ## NEW
 data <- list(
     zeros = array(0, c(nYears,nRegions,nHabitats))
 )
-
+##
 inits.calf4 <- function() {
     p <- pi <- matrix(0, nCauses, nRegions)
     dimnames(p) <- dimnames(pi) <- list(causes2, regions)
@@ -404,7 +399,7 @@ inits.calf4 <- function() {
     list(pi0 = pi * nCauses, p0 = p * nCauses, U = U, 
          tide_mort = tide_mort, cold_mort = cold_mort) 
 }
-
+##
 set.seed(0)
 inits <- inits.calf4()
 inits$tide_mort
@@ -418,26 +413,34 @@ fraction.comp4 <- compileNimble(fraction.model4)
 ## Configure, set up, and compile MCMC
 fraction.mcmcConf4 <- configureMCMC(fraction.model4)
 fraction.mcmcConf4$printSamplers()
-
+##
 ## NEW
 ## this is necessary, too, to assign the RW_multinomial samplers:
 fraction.mcmcConf4$removeSamplers('U')
 for(node in fraction.model4$expandNodeNames('U'))
     fraction.mcmcConf4$addSampler(target = node, type = 'RW_multinomial')
-
+##
 fraction.mcmcConf4$printSamplers()
-
+##
 fraction.mcmcConf4$getMonitors()
 fraction.mcmcConf4$addMonitors('pi')
 fraction.mcmcConf4$addMonitors('p')
-
+##
 fractionMCMC4 <- buildMCMC(fraction.mcmcConf4)
 CfractionMCMC4 <- compileNimble(fractionMCMC4, project = fraction.model4, resetFunctions = TRUE)
 
+
+## XXXXXXXXXXXXXXXXXXXX
+set.seed(0)
+print(system.time(fractionMCMC4$run(1)))   ## 1 minute for 1 iteration
+## XXXXXXXXXXXXXXXXXXXX
+
+
+
 ## Run the model
 set.seed(0)
-print(system.time(CfractionMCMC4$run(1000)))   ## this took 1 minute on my Macbook
-##print(system.time(CfractionMCMC4$run(10000)))  ## presumably, this will take 10 minutes
+print(system.time(CfractionMCMC4$run(500)))   ## 30 seconds
+##print(system.time(CfractionMCMC4$run(10000)))  ## presumably, will take 10 minutes
 
 ## Examine results
 sample.mat <- as.matrix(CfractionMCMC4$mvSamples)
