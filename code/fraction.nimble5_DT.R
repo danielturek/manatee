@@ -5,10 +5,10 @@ remove.packages('nimble')
 install.packages('nimble', repos = 'http://r-nimble.org', type = 'source')
 
 ## Packages
-library(plyr)
+##library(plyr)   ## XXXXXXXX not needed ???
 library(VGAM)
 library(nimble)
-library(igraph)
+##library(igraph)   ## XXXXXXXX not needed ???
 
 ## NEW
 ## define a custom distribution for the determ/stoch multinomial
@@ -178,7 +178,7 @@ causes2 <- c('watercraft', 'wcs', 'debris', 'cold', 'other', 'redtide')
 full.causes2 <- c(causes2, 'undetermined')
 ## Age classes
 classes = c('Calves', 'Subadults', 'Adults')
-##classes2 <- c('Calves1', 'Calves2', 'Subadults', 'Adults')  ## nowhere used -DT
+##classes2 <- c('Calves1', 'Calves2', 'Subadults', 'Adults')  ## NEW nowhere used
 nClasses <- length(classes)
 severities <- c('Normal', 'Cold', 'Severe')
 nSeverities <- length(severities)
@@ -196,7 +196,7 @@ data <- transform(mdata,
                   habitat = factor(habitat, levels = habitats))
 ##
 ## Constants
-## CALF <- 1       ## not used anywhere
+## CALF <- 1       ## NEW not used anywhere
 ## SUBADULT <- 2   ##
 ## ADULT <- 3      ##
 STARTYEAR <- 1996
@@ -226,7 +226,6 @@ coldDesignations <- matrix(c(
                            nYears, nRegions,
                            dimnames = list(STARTYEAR:ENDYEAR, regions))
 coldDesignations
-##
 coldYears <- matrix(as.integer(factor(coldDesignations, levels = severities)), 
                     nYears, nRegions,
                     dimnames = list(STARTYEAR:ENDYEAR, regions))
@@ -256,7 +255,7 @@ for (class in classes) {
 ##### Full model #########################
 ##########################################
 
-fraction.code4 <- nimbleCode({
+fraction.code5 <- nimbleCode({
     ## Red tide effect factors and additional mortality
     tide_mort[1] <- 0
     tide_mort[2] ~ dunif(0, 1-baseMort[SW])
@@ -299,6 +298,8 @@ fraction.code4 <- nimbleCode({
                                                            (1 - (habitat == 3) * (coldYears[year, area] < 3)) * coldVector[1:nCauses] * cold_mort[habitat, coldYears[year, area]] / baseMort[area]) /
                                                                (1 + (area==SW) * (tideYears[year] > 1) * tide_mort[tideYears[year]] / baseMort[SW] + 
                                                                     (1 - (habitat == 3) * (coldYears[year, area] < 3)) * cold_mort[habitat, coldYears[year, area]] / baseMort[area])
+                eta[year,area,habitat,1:nCauses] <- (p[1:nCauses, area] + (1 - (habitat == 3) * (coldYears[year, area] < 3)) * coldVector[1:nCauses] * cold_mort[habitat, coldYears[year, area]] / baseMort[area]) /
+                    (1 + (1 - (habitat == 3) * (coldYears[year, area] < 3)) * cold_mort[habitat, coldYears[year, area]] / baseMort[area])
                 ## Determined carcasses due to each cause
                 ## Ultimately we want this statement for X (total carcasses) instead of data1, where 
                 ## X[year,area,habitat,1:nCauses] <- data1[year,area,habitat,1:nCauses] + U[year,area,habitat,1:nCauses] AND
@@ -307,7 +308,7 @@ fraction.code4 <- nimbleCode({
                 ##data1[year,area,habitat,1:nCauses] ~ dmulti(prob = theta[year,area,habitat,1:nCauses],
                 ##                                            size = totals[year,area,habitat])
                 ## Undetermined carcasses due to each cause
-                U[year,area,habitat,1:nCauses] ~ dmulti(prob = p[1:nCauses, area],
+                U[year,area,habitat,1:nCauses] ~ dmulti(prob = eta[year,area,habitat,1:nCauses],
                                                         size = undet[year,area,habitat])
                 ## NEW
                 ## use of custom distribution:
@@ -319,7 +320,7 @@ fraction.code4 <- nimbleCode({
     }
 })
 
-data.fraction.calf4 <- list(
+constants.fraction.calf5 <- list(
     data1 = data.array[ , 'Calves', , , 1:nCauses],
     nCauses = nCauses,
     nRegions = nRegions, 
@@ -332,18 +333,17 @@ data.fraction.calf4 <- list(
     prior1 = prior1['Calves', , ], 
     tideYears = tideYears,
     coldYears = coldYears,
-    ## NEW
-    ##totals = apply(data.array[ , 'Calves', , , 1:nCauses], 1:3, sum),  ## no longer necessary
+    ##totals = apply(data.array[ , 'Calves', , , 1:nCauses], 1:3, sum),  ## NEW no longer necessary
     baseMort = as.vector(base.mort[,'Calves']),
     undet = data.array[ , 'Calves', , , 1 + nCauses]
 )
 ##
 ## NEW
-data <- list(
+data5 <- list(
     zeros = array(0, c(nYears,nRegions,nHabitats))
 )
 ##
-inits.calf4 <- function() {
+inits.calf5 <- function() {
     p <- pi <- matrix(0, nCauses, nRegions)
     dimnames(p) <- dimnames(pi) <- list(causes2, regions)
     U <- array(NA, c(nYears, nRegions, nHabitats, nCauses))
@@ -379,7 +379,7 @@ inits.calf4 <- function() {
                                                                    region, , 1:(nCauses-1)], 3, sum)+1)
             pi[nCauses, region] <- 1e-100
             pi[nCauses - 1, region] <- pi[nCauses - 1, region] - 1e-100
-        } else  {
+        } else {
             p[,region] <- rdiric(1, rep(1, nCauses))
             for (habitat in habitats) {
                 for (yr in STARTYEAR:ENDYEAR) {
@@ -401,54 +401,63 @@ inits.calf4 <- function() {
 }
 ##
 set.seed(0)
-inits <- inits.calf4()
-inits$tide_mort
+inits5 <- inits.calf5()
+inits5$tide_mort
 ## [1] 0.00000000 0.06519409 0.24907371
 
 ## NEW now uses 'data' also
 ## Nimble model
-fraction.model4 <- nimbleModel(fraction.code4, constants = data.fraction.calf4, data = data, inits = inits)
-fraction.comp4 <- compileNimble(fraction.model4)
+fraction.model5 <- nimbleModel(fraction.code5, constants = constants.fraction.calf5, data = data5, inits = inits5)
+fraction.comp5 <- compileNimble(fraction.model5)
 
 ## Configure, set up, and compile MCMC
-fraction.mcmcConf4 <- configureMCMC(fraction.model4)
-fraction.mcmcConf4$printSamplers()
+fraction.mcmcConf5 <- configureMCMC(fraction.model5)
+fraction.mcmcConf5$printSamplers()
 ##
 ## NEW
 ## this is necessary, too, to assign the RW_multinomial samplers:
-fraction.mcmcConf4$removeSamplers('U')
-for(node in fraction.model4$expandNodeNames('U'))
-    fraction.mcmcConf4$addSampler(target = node, type = 'RW_multinomial')
+fraction.mcmcConf5$removeSamplers('U')
+for(node in fraction.model5$expandNodeNames('U'))
+    fraction.mcmcConf5$addSampler(target = node, type = 'RW_multinomial')
 ##
-fraction.mcmcConf4$printSamplers()
+fraction.mcmcConf5$printSamplers()
 ##
-fraction.mcmcConf4$getMonitors()
-fraction.mcmcConf4$addMonitors('pi')
-fraction.mcmcConf4$addMonitors('p')
+fraction.mcmcConf5$getMonitors()
+fraction.mcmcConf5$addMonitors('pi')
+fraction.mcmcConf5$addMonitors('p')
+
 ##
-fractionMCMC4 <- buildMCMC(fraction.mcmcConf4)
-CfractionMCMC4 <- compileNimble(fractionMCMC4, project = fraction.model4, resetFunctions = TRUE)
+fractionMCMC5 <- buildMCMC(fraction.mcmcConf5)
+CfractionMCMC5 <- compileNimble(fractionMCMC5, project = fraction.model5, resetFunctions = TRUE)
 
 
 ## XXXXXXXXXXXXXXXXXXXX
 set.seed(0)
-print(system.time(fractionMCMC4$run(1)))   ## 1 minute for 1 iteration
+print(system.time(fractionMCMC5$run(1)))   ## 1 minute for 1 iteration
 ## XXXXXXXXXXXXXXXXXXXX
 
 
 
 ## Run the model
 set.seed(0)
-print(system.time(CfractionMCMC4$run(500)))   ## 30 seconds
-##print(system.time(CfractionMCMC4$run(10000)))  ## presumably, will take 10 minutes
+print(system.time(CfractionMCMC5$run(500)))   ## 10 seconds
+##print(system.time(CfractionMCMC5$run(100000)))  ## presumably, will take 33 minutes
 
 ## Examine results
-sample.mat <- as.matrix(CfractionMCMC4$mvSamples)
+sample.mat <- as.matrix(CfractionMCMC5$mvSamples)
 as.numeric(sample.mat[100,100:108])
-## [1] 1.75483480 0.09101431 0.01218549 4.66106256 2.11493586 0.82764299 0.00000000
-## [8] 0.05339126 0.07394997
+##[1] 0.92044145 0.05263814 0.04622625 0.86146243 2.10664425 0.57430944 0.00000000
+##[8] 0.04441385 0.09004974
 
 summary(sample.mat)
+
+## XXXXX check these:
+colnames(sample.mat)
+
+
+sample.mcmc <- as.mcmc(sample.mat[50001:100000, -c(3, 6, 21, 45, 58)]) # Remove parameters fixed at or near 0
+geweke.diag(sample.mcmc)
+geweke.plot(sample.mcmc)
 
 ## Yes, these still sum to 1
 summary(rowSums(sample.mat[,c('pi[1, 1]', 'pi[2, 1]', 'pi[3, 1]', 'pi[4, 1]', 'pi[5, 1]', 'pi[6, 1]')]))
@@ -457,59 +466,4 @@ summary(rowSums(sample.mat[,c('pi[1, 2]', 'pi[2, 2]', 'pi[3, 2]', 'pi[4, 2]', 'p
 
 
 
-
-##########################################
-##### Much simpler model #################
-##########################################
-
-## This very simplified version of the model (and other ones where pi isn't
-## modified into theta) seem to work fine.
-det.code1 <- nimbleCode({
-    ## Loop over regions
-    for (area in 1:nRegions) {
-        ##
-        ## Proportions of mortality for region area
-        pi[1:nCauses,area] ~ ddirch(alpha = prior1[age_class,area,1:nCauses])
-        ##
-        for (habitat in 1:nHabitats) {
-            ## Loop over years
-            for (year in 1:nYears) {
-                ## Multinomial number of carcasses due to each cause
-                data1[year,area,habitat,1:nCauses] ~ dmulti(prob = pi[1:nCauses,area],
-                                                            size = totals[year,area,habitat])
-            }
-        }
-    }
-})
-
-data.det.calf <- list(
-    data1 = data.array[, 'Calves', , , 1:nCauses],
-    nCauses = nCauses,
-    nRegions = nRegions, 
-    nYears = nYears,
-    nSeverities = nSeverities,
-    nHabitats = nHabitats,
-    age_class = CALF,
-    prior1 = prior1, 
-    totals = apply(data.array[ , 'Calves', , , 1:nCauses], 1:3, sum))
-
-inits.det.calf <- function(){
-    pi <- matrix(0, nCauses, nRegions)
-    dimnames(pi) <- list(causes2, regions)
-    for (region in regions) {
-        pi[,region] <- rdiric(1, apply(data.array[ ,'Calves',region, , 1:nCauses], 3, sum)+1)
-    }
-    list(pi = pi) 
-}
-
-det.model1 <- nimbleModel(det.code1, constants = data.det.calf, inits = inits.det.calf(), dimensions = list(pi = c(nCauses, nRegions)))
-
-det.comp1 <- compileNimble(det.model1)
-
-mcmcConf <- configureMCMC(det.model1)
-mcmcConf$printSamplers()
-detMCMC <- buildMCMC(mcmcConf)
-CdetMCMC <- compileNimble(detMCMC, project = det.model1)
-CdetMCMC$run(10000)
-summary(as.matrix(CdetMCMC$mvSamples))
 
