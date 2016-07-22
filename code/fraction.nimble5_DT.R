@@ -1,6 +1,6 @@
 
 nChains <- 3
-niter <- 5000
+niter <- 100000
 nburn <- 0
 saveFileName <- paste0('niter', niter, '.RData')
 
@@ -16,7 +16,7 @@ saveFileName <- paste0('niter', niter, '.RData')
 library(VGAM)     ## needed for rdiric()
 library(coda)
 library(nimble)
-library(methods)  ## necessary when run using bash Rscript
+library(methods)  ## necessary when run through bash Rscript
 
 ## NEW
 ## define a custom distribution for the determ/stoch multinomial
