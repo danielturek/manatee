@@ -1,4 +1,6 @@
 .Rhistory
 *.Rout
 niter*.RData
+*.pdf
+
 
