@@ -1,14 +1,23 @@
 
+nChains <- 3
+niter <- 500
+nburn <- 0
+nodesToExclude <- c('cold_mort[3, 1]', 'cold_mort[3, 2]', 'p0[6, 2]', 'pi0[6, 2]', 'tide_mort[1]', 'pi[6, 2]', 'p[6, 2]')
+saveFileName <- 'niter10000.RData'
+
+
+## XXXXXXXXXXXXXXXXXXXXXXXXX
 ## NEW
 ## using v0.5-1 of nimble, for consistancy
-remove.packages('nimble')
-install.packages('nimble', repos = 'http://r-nimble.org', type = 'source')
+##remove.packages('nimble')
+##install.packages('nimble', repos = 'http://r-nimble.org', type = 'source')
+## XXXXXXXXXXXXXXXXXXXXXXXXX
 
-## Packages
-##library(plyr)   ## XXXXXXXX not needed ???
-library(VGAM)
+##library(plyr)   ## not needed ???
+library(VGAM)     ## needed for rdiric()
+library(coda)
 library(nimble)
-##library(igraph)   ## XXXXXXXX not needed ???
+library(methods)  ## necessary when run using bash Rscript
 
 ## NEW
 ## define a custom distribution for the determ/stoch multinomial
@@ -410,6 +419,46 @@ inits5$tide_mort
 fraction.model5 <- nimbleModel(fraction.code5, constants = constants.fraction.calf5, data = data5, inits = inits5)
 fraction.comp5 <- compileNimble(fraction.model5)
 
+## XXXXXXXXXXXXXXXXXX
+fraction.model5$calculate()
+## [1] -1312.902
+fraction.comp5$calculate()
+## XXXXXXXXXXXXXXXXXX  ERROR BELOW
+## [1] -Inf
+
+####### XXXXXXXXXXXXXXXXX
+#####node <- 'pi0'  ## bad
+#####fraction.model5[[node]]
+#####fraction.comp5[[node]]
+##### 
+####### XXXXXXXXXXXXXXXXX
+#####node <- 'p0'  ## bad
+#####fraction.model5[[node]]
+#####fraction.comp5[[node]]
+##### 
+####### XXXXXXXXXXXXXXXXX
+#####newVal <- 6e-100
+#####node <- 'pi0[6, 2]'
+#####node <- 'p0[6, 2]'
+#####fraction.model5[[node]]
+#####fraction.comp5[[node]]
+#####fraction.model5[[node]] <- newVal
+#####fraction.comp5[[node]] <- newVal
+#####fraction.model5[[node]]
+#####fraction.comp5[[node]]
+##### 
+####### XXXXXXXXXXXXXXXXX
+#####fraction.model5$calculate(node)
+#####fraction.comp5$calculate(node)
+##### 
+####### XXXXXXXXXXXXXXXXX
+#####fraction.model5$getParam(node, 'shape')
+#####fraction.model5$getParam(node, 'scale')
+#####fraction.comp5$getParam(node, 'shape')
+#####fraction.comp5$getParam(node, 'scale')
+
+
+
 ## Configure, set up, and compile MCMC
 fraction.mcmcConf5 <- configureMCMC(fraction.model5)
 fraction.mcmcConf5$printSamplers()
@@ -425,43 +474,44 @@ fraction.mcmcConf5$printSamplers()
 fraction.mcmcConf5$getMonitors()
 fraction.mcmcConf5$addMonitors('pi')
 fraction.mcmcConf5$addMonitors('p')
-
 ##
 fractionMCMC5 <- buildMCMC(fraction.mcmcConf5)
 CfractionMCMC5 <- compileNimble(fractionMCMC5, project = fraction.model5, resetFunctions = TRUE)
 
 
-## XXXXXXXXXXXXXXXXXXXX
-set.seed(0)
-print(system.time(fractionMCMC5$run(1)))   ## 1 minute for 1 iteration
-## XXXXXXXXXXXXXXXXXXXX
+######## XXXXXXXXXXXXXXXXXXXX
+######set.seed(0)
+######print(system.time(fractionMCMC5$run(1)))   ## 1 minute for 1 iteration
+######## XXXXXXXXXXXXXXXXXXXX
 
 
 
-## Run the model
-set.seed(0)
-print(system.time(CfractionMCMC5$run(500)))   ## 10 seconds
-##print(system.time(CfractionMCMC5$run(100000)))  ## presumably, will take 33 minutes
+runNIMBLE <- function(seed) {
+    set.seed(seed)
+    inits5 <- inits.calf5()
+    fraction.comp5$setInits(inits5)
+    fraction.comp5$calculate()
+    CfractionMCMC5$run(niter)
+    samples <- as.matrix(CfractionMCMC5$mvSamples)
+    nodeIndToExclude <- which(colnames(samples) %in% nodesToExclude)
+    samples <- samples[, -nodeIndToExclude]  ## remove nodes pegged at (or near) zero
+    samples <- samples[(nburn+1):nrow(samples), ]  ## remove burnin
+    return(samples)
+}
 
-## Examine results
-sample.mat <- as.matrix(CfractionMCMC5$mvSamples)
-as.numeric(sample.mat[100,100:108])
-##[1] 0.92044145 0.05263814 0.04622625 0.86146243 2.10664425 0.57430944 0.00000000
-##[8] 0.04441385 0.09004974
+samplesList <- vector('list', nChains)
 
-summary(sample.mat)
+for(i in 1:nChains)
+    samplesList[[i]] <- runNIMBLE(i)
 
-## XXXXX check these:
-colnames(sample.mat)
+save(list = c('samplesList'), file = saveFileName)
 
 
-sample.mcmc <- as.mcmc(sample.mat[50001:100000, -c(3, 6, 21, 45, 58)]) # Remove parameters fixed at or near 0
-geweke.diag(sample.mcmc)
-geweke.plot(sample.mcmc)
-
-## Yes, these still sum to 1
-summary(rowSums(sample.mat[,c('pi[1, 1]', 'pi[2, 1]', 'pi[3, 1]', 'pi[4, 1]', 'pi[5, 1]', 'pi[6, 1]')]))
-summary(rowSums(sample.mat[,c('pi[1, 2]', 'pi[2, 2]', 'pi[3, 2]', 'pi[4, 2]', 'pi[5, 2]', 'pi[6, 2]')]))
+######## XXXXXXXXXXXXXXXXXXXX
+#####summary(samples)
+#####geweke.diag(samples)
+#####geweke.plot(samples)
+######## XXXXXXXXXXXXXXXXXXXX
 
 
 
