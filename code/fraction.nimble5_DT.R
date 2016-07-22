@@ -1,8 +1,9 @@
 
 nChains <- 3
+##niter <- 500
 ##niter <- 100000
-niter <- 200000
-nburn <- 0
+niter <- 250000
+nburn <-  50000
 saveFileName <- paste0('niter', niter, '.RData')
 
 
@@ -16,7 +17,8 @@ saveFileName <- paste0('niter', niter, '.RData')
 ##library(plyr)   ## not needed ???
 library(VGAM)     ## needed for rdiric()
 library(coda)
-library(nimble, lib.loc = '~/Documents/')
+library(nimble)
+##library(nimble, lib.loc = '~/Documents/')
 library(methods)  ## necessary when run through bash Rscript
 options(scipen = 999)
 
@@ -420,45 +422,10 @@ inits5$tide_mort
 fraction.model5 <- nimbleModel(fraction.code5, constants = constants.fraction.calf5, data = data5, inits = inits5)
 fraction.comp5 <- compileNimble(fraction.model5)
 
-## XXXXXXXXXXXXXXXXXX
 fraction.model5$calculate()
 ## [1] -1312.902
 fraction.comp5$calculate()
-## XXXXXXXXXXXXXXXXXX  ERROR BELOW
-## [1] -Inf
-
-####### XXXXXXXXXXXXXXXXX
-#####node <- 'pi0'  ## bad
-#####fraction.model5[[node]]
-#####fraction.comp5[[node]]
-##### 
-####### XXXXXXXXXXXXXXXXX
-#####node <- 'p0'  ## bad
-#####fraction.model5[[node]]
-#####fraction.comp5[[node]]
-##### 
-####### XXXXXXXXXXXXXXXXX
-#####newVal <- 6e-100
-#####node <- 'pi0[6, 2]'
-#####node <- 'p0[6, 2]'
-#####fraction.model5[[node]]
-#####fraction.comp5[[node]]
-#####fraction.model5[[node]] <- newVal
-#####fraction.comp5[[node]] <- newVal
-#####fraction.model5[[node]]
-#####fraction.comp5[[node]]
-##### 
-####### XXXXXXXXXXXXXXXXX
-#####fraction.model5$calculate(node)
-#####fraction.comp5$calculate(node)
-##### 
-####### XXXXXXXXXXXXXXXXX
-#####fraction.model5$getParam(node, 'shape')
-#####fraction.model5$getParam(node, 'scale')
-#####fraction.comp5$getParam(node, 'shape')
-#####fraction.comp5$getParam(node, 'scale')
-
-
+## [1] -1312.902
 
 ## Configure, set up, and compile MCMC
 fraction.mcmcConf5 <- configureMCMC(fraction.model5)
@@ -480,15 +447,10 @@ fractionMCMC5 <- buildMCMC(fraction.mcmcConf5)
 CfractionMCMC5 <- compileNimble(fractionMCMC5, project = fraction.model5, resetFunctions = TRUE)
 
 
-######## XXXXXXXXXXXXXXXXXXXX
-######set.seed(0)
-######print(system.time(fractionMCMC5$run(1)))   ## 1 minute for 1 iteration
-######## XXXXXXXXXXXXXXXXXXXX
-
 nodesToExclude <- c('cold_mort[3, 1]', 'cold_mort[3, 2]', 'p0[6, 2]', 'pi0[6, 2]', 'tide_mort[1]', 'pi[6, 2]', 'p[6, 2]')
 
 
-runNIMBLE <- function(seed) {
+runMCMCchains <- function(seed) {
     set.seed(seed)
     inits5 <- inits.calf5()
     fraction.comp5$setInits(inits5)
