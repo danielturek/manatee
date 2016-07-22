@@ -3,6 +3,7 @@ nChains <- 3
 ##niter <- 500
 ##niter <- 100000
 niter <- 250000
+##nburn <- 0
 nburn <-  50000
 saveFileName <- paste0('niter', niter, '.RData')
 
@@ -194,9 +195,16 @@ severities <- c('Normal', 'Cold', 'Severe')
 nSeverities <- length(severities)
 ##
 ## Baseline mortality 
-base.mort <- array(c(0.123000, 0.093000, 0.100000, 0.103000, 
-                     0.027417, 0.020739, 0.022355, 0.023073,
-                     0.027417, 0.020739, 0.022355, 0.023073),
+##base.mort <- array(c(0.123000, 0.093000, 0.100000, 0.103000, 
+##                     0.027417, 0.020739, 0.022355, 0.023073,
+##                     0.027417, 0.020739, 0.022355, 0.023073),
+##                   dim = c(nRegions, nClasses),
+##                   dimnames = list(regions, classes))
+## NEW in fraction.nimble.calf6.R
+adult.base.mort <- 1 - c(0.972883, 0.978949, 0.977913, 0.977058)
+calf1.mort.ratio <- 0.190/0.031
+calf2.mort.ratio <- 0.085/0.031
+base.mort <- array(c(1 - sqrt((1 - calf1.mort.ratio * adult.base.mort) * (1 - calf2.mort.ratio * adult.base.mort)), adult.base.mort, adult.base.mort),
                    dim = c(nRegions, nClasses),
                    dimnames = list(regions, classes))
 ##
@@ -228,13 +236,25 @@ tideYears[as.character(int_tide_years)] <- 3
 ##tideYears
 ##
 ## Cold and severe years
-coldDesignations <- matrix(c(
-    'Cold', rep('Normal', 4), 'Cold', 'Normal', 'Cold', rep('Normal', 6), 'Severe', rep('Normal', 3),
-    'Cold', rep('Normal', 4), 'Cold', rep('Normal', 7), 'Cold', 'Severe', 'Cold', rep('Normal', 2),
-    'Cold', 'Normal', 'Cold', 'Normal', 'Normal', 'Cold', 'Normal', 'Severe', rep('Normal', 6), 'Severe', 'Cold', rep('Normal', 2),
-    'Cold', rep('Normal', 4), 'Cold', rep('Normal', 8), 'Severe', rep('Normal', 3)),
-                           nYears, nRegions,
-                           dimnames = list(STARTYEAR:ENDYEAR, regions))
+##coldDesignations <- matrix(c(
+##    'Cold', rep('Normal', 4), 'Cold', 'Normal', 'Cold', rep('Normal', 6), 'Severe', rep('Normal', 3),
+##    'Cold', rep('Normal', 4), 'Cold', rep('Normal', 7), 'Cold', 'Severe', 'Cold', rep('Normal', 2),
+##    'Cold', 'Normal', 'Cold', 'Normal', 'Normal', 'Cold', 'Normal', 'Severe', rep('Normal', 6), 'Severe', 'Cold', rep('Normal', 2),
+##    'Cold', rep('Normal', 4), 'Cold', rep('Normal', 8), 'Severe', rep('Normal', 3)),
+##                           nYears, nRegions,
+##                           dimnames = list(STARTYEAR:ENDYEAR, regions))
+####coldDesignations
+##coldYears <- matrix(as.integer(factor(coldDesignations, levels = severities)), 
+##                    nYears, nRegions,
+##                    dimnames = list(STARTYEAR:ENDYEAR, regions))
+## NEW in fraction.nimble.calf6.R
+coldDesignations <- matrix(
+    c("Cold", rep("Normal", 4), "Cold", "Normal", "Cold", rep("Normal", 6), "Severe", "Cold", rep("Normal", 2),
+      "Cold", rep("Normal", 4), "Cold", rep("Normal", 7), "Cold", "Severe", "Cold", rep("Normal", 2),
+      "Cold", "Normal", "Cold", "Normal", "Normal", "Cold", "Normal", "Severe", rep("Normal", 6), "Severe", "Cold", rep("Normal", 2),
+      "Cold", rep("Normal", 4), "Cold", rep("Normal", 8), "Severe", rep("Normal", 3)),
+    nYears, nRegions,
+    dimnames = list(STARTYEAR:ENDYEAR, regions))
 ##coldDesignations
 coldYears <- matrix(as.integer(factor(coldDesignations, levels = severities)), 
                     nYears, nRegions,
@@ -415,9 +435,9 @@ fraction.model5 <- nimbleModel(fraction.code5, constants = constants.fraction.ca
 fraction.comp5 <- compileNimble(fraction.model5)
 
 fraction.model5$calculate()
-## [1] -1312.902
+## [1] -1345.687
 fraction.comp5$calculate()
-## [1] -1312.902
+## [1] -1345.687
 
 ## Configure, set up, and compile MCMC
 fraction.mcmcConf5 <- configureMCMC(fraction.model5)
