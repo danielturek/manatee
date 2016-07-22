@@ -1,6 +1,7 @@
 
 nChains <- 3
-niter <- 100000
+##niter <- 100000
+niter <- 200000
 nburn <- 0
 saveFileName <- paste0('niter', niter, '.RData')
 
