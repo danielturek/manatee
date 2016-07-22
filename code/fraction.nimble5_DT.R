@@ -450,7 +450,7 @@ CfractionMCMC5 <- compileNimble(fractionMCMC5, project = fraction.model5, resetF
 nodesToExclude <- c('cold_mort[3, 1]', 'cold_mort[3, 2]', 'p0[6, 2]', 'pi0[6, 2]', 'tide_mort[1]', 'pi[6, 2]', 'p[6, 2]')
 
 
-runMCMCchains <- function(seed) {
+runNIMBLE <- function(seed) {
     set.seed(seed)
     inits5 <- inits.calf5()
     fraction.comp5$setInits(inits5)
