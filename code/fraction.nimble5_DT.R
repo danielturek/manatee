@@ -2,9 +2,7 @@
 nChains <- 3
 niter <- 5000
 nburn <- 0
-saveFileName <- 'niter10000.RData'
-nodesToExclude <- c('cold_mort[3, 1]', 'cold_mort[3, 2]', 'p0[6, 2]', 'pi0[6, 2]', 'tide_mort[1]', 'pi[6, 2]', 'p[6, 2]')
-saveFileName <- 'niter5000.RData'
+saveFileName <- paste0('niter', niter, '.RData')
 
 
 ## XXXXXXXXXXXXXXXXXXXXXXXXX
@@ -485,6 +483,7 @@ CfractionMCMC5 <- compileNimble(fractionMCMC5, project = fraction.model5, resetF
 ######print(system.time(fractionMCMC5$run(1)))   ## 1 minute for 1 iteration
 ######## XXXXXXXXXXXXXXXXXXXX
 
+nodesToExclude <- c('cold_mort[3, 1]', 'cold_mort[3, 2]', 'p0[6, 2]', 'pi0[6, 2]', 'tide_mort[1]', 'pi[6, 2]', 'p[6, 2]')
 
 
 runNIMBLE <- function(seed) {
