@@ -1,3 +1,4 @@
 .Rhistory
 *.Rout
+niter*.RData
 
