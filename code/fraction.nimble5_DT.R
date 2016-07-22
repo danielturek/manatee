@@ -15,12 +15,11 @@ saveFileName <- paste0('niter', niter, '.RData')
 ## XXXXXXXXXXXXXXXXXXXXXXXXX
 
 ##library(plyr)   ## not needed ???
-library(VGAM)     ## needed for rdiric()
+if(Sys.info()['nodename'] == 'gandalf')
+    library(nimble, lib.loc = '~/Documents/') else library(nimble)
+library(VGAM)
 library(coda)
-##library(nimble)
-library(nimble, lib.loc = '~/Documents/')
-library(methods)  ## necessary when run through bash Rscript
-options(scipen = 999)
+options(scipen = 999)   ## used for printing output file names
 
 ## NEW
 ## define a custom distribution for the determ/stoch multinomial
@@ -225,9 +224,9 @@ modTideYears[as.character(mod_tide_years)] <- 1
 intTideYears[as.character(int_tide_years)] <- 1
 tideYears[as.character(mod_tide_years)] <- 2
 tideYears[as.character(int_tide_years)] <- 3
-modTideYears
-intTideYears
-tideYears
+##modTideYears
+##intTideYears
+##tideYears
 ##
 ## Cold and severe years
 coldDesignations <- matrix(c(
@@ -237,7 +236,7 @@ coldDesignations <- matrix(c(
     'Cold', rep('Normal', 4), 'Cold', rep('Normal', 8), 'Severe', rep('Normal', 3)),
                            nYears, nRegions,
                            dimnames = list(STARTYEAR:ENDYEAR, regions))
-coldDesignations
+##coldDesignations
 coldYears <- matrix(as.integer(factor(coldDesignations, levels = severities)), 
                     nYears, nRegions,
                     dimnames = list(STARTYEAR:ENDYEAR, regions))
@@ -248,10 +247,6 @@ dimnames(prior1) <- list(classes, regions, causes2)
 ##
 ## I haven't figured out how to fix this at zero in NIMBLE, but giving it a prior close to zero might work okay
 prior1[,'USJ','redtide'] <- 0.001
-set.seed(0)
-rdirch(1, prior1['Calves','USJ',])
-## [1]  4.235806e-01   6.995631e-02  1.978423e-02  1.976712e-01  2.890076e-01
-## [6]  8.603148e-115
 ##
 ## Move from data frame to array
 data.array <- array(NA, c(nYears, nClasses, nRegions, nHabitats, nCauses + 1))
@@ -414,8 +409,6 @@ inits.calf5 <- function() {
 ##
 set.seed(0)
 inits5 <- inits.calf5()
-inits5$tide_mort
-## [1] 0.00000000 0.06519409 0.24907371
 
 ## NEW now uses 'data' also
 ## Nimble model
@@ -429,7 +422,7 @@ fraction.comp5$calculate()
 
 ## Configure, set up, and compile MCMC
 fraction.mcmcConf5 <- configureMCMC(fraction.model5)
-fraction.mcmcConf5$printSamplers()
+##fraction.mcmcConf5$printSamplers()
 ##
 ## NEW
 ## this is necessary, too, to assign the RW_multinomial samplers:
@@ -437,7 +430,7 @@ fraction.mcmcConf5$removeSamplers('U')
 for(node in fraction.model5$expandNodeNames('U'))
     fraction.mcmcConf5$addSampler(target = node, type = 'RW_multinomial')
 ##
-fraction.mcmcConf5$printSamplers()
+##fraction.mcmcConf5$printSamplers()
 ##
 fraction.mcmcConf5$getMonitors()
 fraction.mcmcConf5$addMonitors('pi')
@@ -470,12 +463,6 @@ for(i in 1:nChains)
 
 save(list = c('samplesList'), file = saveFileName)
 
-
-######## XXXXXXXXXXXXXXXXXXXX
-#####summary(samples)
-#####geweke.diag(samples)
-#####geweke.plot(samples)
-######## XXXXXXXXXXXXXXXXXXXX
 
 
 

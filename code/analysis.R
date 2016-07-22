@@ -39,7 +39,7 @@ samplesPlot <- function(samples, ind=1:ncol(samples), burnin=NULL, width=7, heig
 samples <- samplesList[[1]]
 
 sort(apply(samples, 2, effectiveSize))
-## minimum ESS from 100,000 samples is ~450 (pretty low)
+## minimum ESS from 100,000 samples is ~ 450 (pretty low)
 
 ## make traceplots and posterior density plots
 samplesPlot(samples, c('cold_mort[1, 1]', 'cold_mort[2, 1]', 'cold_mort[1, 2]', 'cold_mort[2, 2]', 'cold_mort[1, 3]', 'cold_mort[2, 3]', 'cold_mort[3, 3]'))
@@ -57,8 +57,12 @@ for(node in c('p', 'pi')) {
 }
 
 ## not doing plots for p0 and pi0, since I think p and pi
-## are genuinely the quantities of interest, here.
+## are the actual quantities of interest.
 
 summary(samples1)
+
+geweke.diag(samples1)
+
+geweke.plot(samples1)
 
 
