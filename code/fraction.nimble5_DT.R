@@ -8,7 +8,6 @@ saveFileName <- paste0('niter', niter, '.RData')
 
 
 ## XXXXXXXXXXXXXXXXXXXXXXXXX
-## NEW
 ## using v0.5-1 of nimble, for consistancy
 ##remove.packages('nimble')
 ##install.packages('nimble', repos = 'http://r-nimble.org', type = 'source')
