@@ -1,5 +1,6 @@
 
-inputFileName <- 'niter5000.RData'
+niter <- 5000
+inputFileName <- paste0('niter', niter, '.RData')
 load(inputFileName)
 
 library(coda)
@@ -34,10 +35,10 @@ samplesPlot <- function(samples, ind=1:ncol(samples), burnin=NULL, width=7, heig
 
 
 samplesPlot(samples, c('cold_mort[1, 1]', 'cold_mort[2, 1]', 'cold_mort[1, 2]', 'cold_mort[2, 2]', 'cold_mort[1, 3]', 'cold_mort[2, 3]', 'cold_mort[3, 3]'))
-dev.copy2pdf(file = 'cold_mort.pdf')
+dev.copy2pdf(file = paste0('cold_mort', niter, '.pdf'))
 
 samplesPlot(samples, c('tide_mort[2]', 'tide_mort[3]'))
-dev.copy2pdf(file = 'tide_mort.pdf')
+dev.copy2pdf(file = paste0('tide_mort', niter, '.pdf'))
 
 for(node in c('p', 'pi')) {
     for(area in 1:4) {
@@ -45,7 +46,7 @@ for(node in c('p', 'pi')) {
         nodenames <- setdiff(nodenames, c('p[6, 2]', 'pi[6, 2]'))
         samplesPlot(samples, nodenames)
         regions <- c('ATL', 'USJ', 'NW', 'SW')
-        dev.copy2pdf(file = paste0(node, '_', regions[area], '.pdf'))
+        dev.copy2pdf(file = paste0(node, '_', regions[area], niter, '.pdf'))
     }
 }
 
