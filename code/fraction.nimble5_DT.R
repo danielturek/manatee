@@ -17,6 +17,7 @@ library(VGAM)     ## needed for rdiric()
 library(coda)
 library(nimble)
 library(methods)  ## necessary when run through bash Rscript
+options(scipen = 999)
 
 ## NEW
 ## define a custom distribution for the determ/stoch multinomial
