@@ -1,9 +1,10 @@
 
 nChains <- 3
-niter <- 500
+niter <- 5000
 nburn <- 0
-nodesToExclude <- c('cold_mort[3, 1]', 'cold_mort[3, 2]', 'p0[6, 2]', 'pi0[6, 2]', 'tide_mort[1]', 'pi[6, 2]', 'p[6, 2]')
 saveFileName <- 'niter10000.RData'
+nodesToExclude <- c('cold_mort[3, 1]', 'cold_mort[3, 2]', 'p0[6, 2]', 'pi0[6, 2]', 'tide_mort[1]', 'pi[6, 2]', 'p[6, 2]')
+saveFileName <- 'niter5000.RData'
 
 
 ## XXXXXXXXXXXXXXXXXXXXXXXXX
