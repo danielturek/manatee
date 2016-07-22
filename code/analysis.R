@@ -1,7 +1,9 @@
-
-niter <- 5000
+rr
+niter <- '1e+05'
 inputFileName <- paste0('niter', niter, '.RData')
 load(inputFileName)
+
+lapply(samplesList, dim)    ## XXXXXXXXXXXXXXXXXXXX
 
 library(coda)
 mcmcs <- as.mcmc.list(lapply(samplesList, as.mcmc))
@@ -33,6 +35,9 @@ samplesPlot <- function(samples, ind=1:ncol(samples), burnin=NULL, width=7, heig
         legend(legend=dimnames(samples)[[2]], fill=rainbow(nparam, alpha=0.5), bty='n', x=legend.location)
 }
 
+samples <- samplesList[[1]]
+
+sort(apply(samples, 2, effectiveSize))
 
 samplesPlot(samples, c('cold_mort[1, 1]', 'cold_mort[2, 1]', 'cold_mort[1, 2]', 'cold_mort[2, 2]', 'cold_mort[1, 3]', 'cold_mort[2, 3]', 'cold_mort[3, 3]'))
 dev.copy2pdf(file = paste0('cold_mort', niter, '.pdf'))
@@ -53,8 +58,6 @@ for(node in c('p', 'pi')) {
 ## not doing plots for p0 and pi0, since I think p and pi
 ## are genuinely the quantities of interest, here.
 
-samples <- samplesList[[1]]
-sort(apply(samples, 2, effectiveSize))
-
+summary(samples1)
 
 
