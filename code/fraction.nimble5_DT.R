@@ -15,8 +15,7 @@ saveFileName <- paste0('niter', niter, '.RData')
 ## XXXXXXXXXXXXXXXXXXXXXXXXX
 
 ##library(plyr)   ## not needed ???
-if(Sys.info()['nodename'] == 'gandalf')
-    library(nimble, lib.loc = '~/Documents/') else library(nimble)
+if(Sys.info()['nodename'] == 'gandalf') library(nimble, lib.loc = '~/Documents/') else library(nimble)
 library(VGAM)
 library(coda)
 options(scipen = 999)   ## used for printing output file names
