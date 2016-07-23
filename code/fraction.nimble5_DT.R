@@ -314,6 +314,7 @@ nodesToExclude <- c('cold_mort[3, 1]', 'cold_mort[3, 2]', 'p0[6, 2]', 'pi0[6, 2]
 
 
 runNIMBLE <- function(seed) {
+    message('beginning chain ', i, '...')
     set.seed(seed)
     inits5 <- inits.calf5()
     fraction.comp5$setInits(inits5)
@@ -327,6 +328,18 @@ runNIMBLE <- function(seed) {
 }
 
 samplesList <- vector('list', nChains)
+
+#########################################################################
+#########################################################################
+## NOTE:
+## the next command takes a long time, to generate 3x chains of 250,000 samples
+## on my machine, this took 9 hours,
+## which was using the (much faster) developmental version of NIMBLE.
+## using the currently released version (0.5-1) that you're using,
+## it should execute fine, but I expect take 2-3 times longer.
+## so you're looking at 18-27 hours, also depending on machine differences.
+#########################################################################
+#########################################################################
 
 for(i in 1:nChains)   samplesList[[i]] <- runNIMBLE(i)
 
