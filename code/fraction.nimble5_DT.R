@@ -19,7 +19,7 @@ nChains <- 3
 ## of nimble, to make sure it runs correctly (and identically)
 ## using either version.
 ## just leave this commented out.
-## using v0.5-1 of nimble, for consistancy.
+##
 ##remove.packages('nimble')
 ##install.packages('nimble', repos = 'http://r-nimble.org', type = 'source')
 
