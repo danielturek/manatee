@@ -41,10 +41,16 @@ for(node in c('p', 'pi')) {
 
 summary(samples)
 
-summary(mcmcs[[1]])
 
-sort(abs(geweke.diag(mcmcs[[1]], frac1=0.5, frac2=0.5)$z))
+## posterior mean and median and 95% credible intervals
+a <- cbind(
+    apply(samples, 2, function(x) quantile(x, 0.025)),
+    apply(samples, 2, mean),
+    apply(samples, 2, median),
+    apply(samples, 2, function(x) quantile(x, 0.975))
+)
+colnames(a) <- c('2.5%', 'mean', 'median', '97.5%')
+print(a)
 
-##geweke.plot(mcmcs[[1]])
 
 
