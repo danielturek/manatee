@@ -4,8 +4,8 @@
 niter <- '250000'
 inputFileName <- paste0('niter', niter, '.RData')
 load(inputFileName)
-options(scipen = 999)
-source('defs.R')   ## need this for plots below
+options(scipen = 999)    ## used for printing output file names
+source('defs.R')      ## need this for plots below
 
 lapply(samplesList, dim)
 

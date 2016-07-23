@@ -14,7 +14,6 @@ if(fast) {
 nChains <- 3
 
 
-
 ## this is for my testing, to install the older (0.5-1) version
 ## of nimble, to make sure it runs correctly (and identically)
 ## using either version.
@@ -23,13 +22,22 @@ nChains <- 3
 ##remove.packages('nimble')
 ##install.packages('nimble', repos = 'http://r-nimble.org', type = 'source')
 
-##library(plyr)   ## not needed ???
+
+## NEW
+## next line just loads the NIMBLE library
+## it's different because I load it different when running on a remote cluster
 if(Sys.info()['nodename'] == 'gandalf') library(nimble, lib.loc = '~/Documents/') else library(nimble)
+
+
+##library(plyr)   ## NEW not needed ???
 library(VGAM)
 library(coda)
-options(scipen = 999)   ## used for printing output file names
 
+
+## NEW
+## input custom samplers and distributions for your model
 source('defs.R')
+
 
 ## Import data
 mdata <- read.csv('mortalities.simulated.April.pDet.const.csv')
@@ -352,6 +360,7 @@ samplesList <- vector('list', nChains)
 
 for(i in 1:nChains)   samplesList[[i]] <- runNIMBLE(i)
 
+options(scipen = 999)   ## used for printing output file names
 saveFileName <- paste0('niter', niter, '.RData')
 
 save(list = c('samplesList'), file = saveFileName)
