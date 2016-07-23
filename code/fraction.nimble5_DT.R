@@ -1,18 +1,27 @@
 
+## change 'fast' to TRUE for a quick run,
+## to see if updates to the model run correctly
+fast <- FALSE
+
+if(fast) {
+    niter <- 500
+    nburn <- 0
+} else {
+    niter <- 250000
+    nburn <- 50000
+}    
+
 nChains <- 3
-##niter <- 500
-##niter <- 100000
-niter <- 250000
-##nburn <- 0
-nburn <- 50000
-saveFileName <- paste0('niter', niter, '.RData')
 
 
-## XXXXXXXXXXXXXXXXXXXXXXXXX
-## using v0.5-1 of nimble, for consistancy
+
+## this is for my testing, to install the older (0.5-1) version
+## of nimble, to make sure it runs correctly (and identically)
+## using either version.
+## just leave this commented out.
+## using v0.5-1 of nimble, for consistancy.
 ##remove.packages('nimble')
 ##install.packages('nimble', repos = 'http://r-nimble.org', type = 'source')
-## XXXXXXXXXXXXXXXXXXXXXXXXX
 
 ##library(plyr)   ## not needed ???
 if(Sys.info()['nodename'] == 'gandalf') library(nimble, lib.loc = '~/Documents/') else library(nimble)
@@ -342,6 +351,8 @@ samplesList <- vector('list', nChains)
 #########################################################################
 
 for(i in 1:nChains)   samplesList[[i]] <- runNIMBLE(i)
+
+saveFileName <- paste0('niter', niter, '.RData')
 
 save(list = c('samplesList'), file = saveFileName)
 
