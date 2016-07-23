@@ -1,5 +1,8 @@
 
 
+if(Sys.info()['nodename'] == 'gandalf') library(nimble, lib.loc = '~/Documents/') else library(nimble)
+
+
 ## NEW
 ## define a custom distribution for the determ/stoch multinomial
 dmultiSum <- nimbleFunction(
