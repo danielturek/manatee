@@ -2,5 +2,6 @@
 *.Rout
 niter*.RData
 *.pdf
+.DS_Store
 
 
