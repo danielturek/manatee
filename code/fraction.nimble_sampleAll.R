@@ -1,7 +1,7 @@
 
 ## change 'fast' to TRUE for a quick run,
 ## to see if updates to the model run correctly
-fast <- FALSE
+fast <- TRUE
 
 if(fast) {
     niter <- 500
@@ -368,8 +368,23 @@ save(list = c('samplesList'), file = saveFileName)
 
 ####  YYYYYYYYYYYYYYYYYY
 ####  YYYYYYYYYYYYYYYYYY
+
+if(Sys.info()['nodename'] == 'gandalf') library(nimble, lib.loc = '~/Documents/') else library(nimble)
 library(coda)
+
+saveFileName <- paste0('niter', niter, '_sampleAll.RData')  ##  YYYYYYYYYYYYYYYYYY
+load(saveFileName)
+
 lapply(samplesList, dim)
+dn <- dimnames(samplesList[[1]])[[2]]
+dnExclude <- dn[grepl('^U.*6]$', dn, perl=TRUE)]
+dnExclude
+dnKeep <- setdiff(dn, dnExclude)
+dnKeep
+samplesList <- lapply(samplesList, function(x) x[,dnKeep])
+lapply(samplesList, dim)
+dimnames(samplesList[[1]])[[2]]
+
 mcmcs <- as.mcmc.list(lapply(samplesList, as.mcmc))
 gd <- gelman.diag(mcmcs, transform = TRUE)
 print(gd)
