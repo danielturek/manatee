@@ -40,7 +40,8 @@ source('defs.R')
 
 
 ## Import data
-mdata <- read.csv('mortalities.30km.dword.1996.2013.csv')
+##mdata <- read.csv('mortalities.30km.dword.1996.2013.csv')  ## original
+mdata <- read.csv('mortalities.simulated.April.pDet.const.csv')  ## DT adding to try??
 ## FL regions
 regions <- c('ATL', 'USJ', 'NW', 'SW')
 nRegions <- length(regions)
@@ -166,8 +167,9 @@ fraction.code.calf <- nimbleCode({
         pi[1:nCauses,area] <- pi0[1:nCauses,area] / sum(pi0[1:nCauses,area])
         ## Loop over years
         for (year in 1:nYears) {
-          pDet2[year,area,1:nCauses] <- (pDet[1:nCauses, area] + (area==SW) * (tideYears[year] > 1) * tideVector[1:nCauses] * tide_mort[tideYears[year]] / baseMort[SW]) /
-            (1 + (area==SW) * (tideYears[year] > 1) * tideVector[1:nCauses] * tide_mort[tideYears[year]] / baseMort[SW])
+            ## REMOVED pDet2 from here
+            ##pDet2[year,area,1:nCauses] <- (pDet[1:nCauses, area] + (area==SW) * (tideYears[year] > 1) * tideVector[1:nCauses] * tide_mort[tideYears[year]] / baseMort[SW]) /
+            ##    (1 + (area==SW) * (tideYears[year] > 1) * tideVector[1:nCauses] * tide_mort[tideYears[year]] / baseMort[SW])
           ## Loop over habitat qualities
           for (habitat in 1:nHabitats) {
             theta[year,area,habitat,1:nCauses] <- (pi[1:nCauses, area] + (area==SW) * (tideYears[year] > 1) * tideVector[1:nCauses] * tide_mort[tideYears[year]] / baseMort[SW] +
@@ -177,10 +179,32 @@ fraction.code.calf <- nimbleCode({
             ## Total carcasses due to each cause
             X[year,area,habitat,1:nCauses] ~ dmulti(prob = theta[year,area,habitat,1:nCauses],
                                                     size = totals[year,area,habitat])
-            for (cause in 1:nCauses)
-              data1[year,area,habitat,cause] ~ dbin(prob = pDet2[year,area,cause],
-                                                    size = X[year,area,habitat,cause])
+            ## REMOVED data1 declaration from here
+            ##for (cause in 1:nCauses)
+            ##    data1[year,area,habitat,cause] ~ dbin(prob = pDet2[year,area,cause],
+            ##                                          size = X[year,area,habitat,cause])
           }
+      }
+    }
+    ##
+    ## area=1,2,3, only use pDet, gives conjugate sampling
+    for (area in 1:(nRegions-1)) {
+        for (year in 1:nYears) {
+            for (habitat in 1:nHabitats) {
+                for (cause in 1:nCauses)
+                    data1[year,area,habitat,cause] ~ dbin(prob = pDet[cause,area], size = X[year,area,habitat,cause])
+            }
+        }
+    }
+    ##
+    ## area=4=SW, use pDet2, results in RW sampling
+    for (year in 1:nYears) {
+        pDet2[year,1:nCauses] <- (pDet[1:nCauses, 4] + (tideYears[year] > 1) * tideVector[1:nCauses] * tide_mort[tideYears[year]] / baseMort[SW]) /
+            (1 + (tideYears[year] > 1) * tideVector[1:nCauses] * tide_mort[tideYears[year]] / baseMort[SW])
+        ## Loop over habitat qualities
+        for (habitat in 1:nHabitats) {
+            for (cause in 1:nCauses)
+                data1[year,4,habitat,cause] ~ dbin(prob = pDet2[year,cause], size = X[year,4,habitat,cause])
         }
     }
 })
@@ -279,18 +303,23 @@ inits0 <- inits.calf(data.array)
 inits0$pDet
 
 ## Nimble model
-fraction.model.calf <- nimbleModel(fraction.code.calf, constants = constants.fraction.calf, 
-                                   data = data.fraction.calf, inits = inits0)
-fraction.comp.calf <- compileNimble(fraction.model.calf)
+fraction.model.calf <- nimbleModel(fraction.code.calf, constants = constants.fraction.calf, data = data.fraction.calf, inits = inits0)
+fraction.comp.calf <- compileNimble(fraction.model.calf)  ## DT taking out to skip compile
 
 fraction.model.calf$calculate()
 ## [1] -1456.4
 fraction.comp.calf$calculate()
 ## [1] -1456.4
 
+## DT just configure for pDet[1, 1]
+nodes <- c('pDet[1, 1]')  ## DT just print for nodes
+fraction.mcmcConf.calf <- configureMCMC(fraction.model.calf, nodes = nodes)
+fraction.mcmcConf.calf$printSamplers()  ## DT just print for nodes
+
 ## Configure, set up, and compile MCMC
 fraction.mcmcConf.calf <- configureMCMC(fraction.model.calf)
 fraction.mcmcConf.calf$printSamplers()
+
 ##
 ## NEW
 ## this is necessary, too, to assign the RW_multinomial samplers:
