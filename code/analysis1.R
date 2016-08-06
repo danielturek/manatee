@@ -47,6 +47,18 @@ for(j in 1:3) {
 
 summary(samples)
 
+node <- 'p'
+area <- 1
+nodenames <- paste0(node, '[', 1:6, ', ', area, ']')
+nodenames <- setdiff(nodenames, c('p[6, 2]', 'pi[6, 2]'))
+nodenames
+trunc <- 50
+samplesTrunc <- samples[1:trunc, ]
+dim(samplesTrunc)
+samplesPlot(samplesTrunc, nodenames)
+
+
+
 
 ## posterior mean and median and 95% credible intervals
 a <- cbind(

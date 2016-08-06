@@ -1,10 +1,11 @@
 
 ## change 'fast' to TRUE for a quick run,
 ## to see if updates to the model run correctly
-fast <- FALSE
+fast <- TRUE
 
 if(fast) {
-    niter <- 5000
+    niter <- 500
+    ##niter <- 5000
     nburn <- 0
 } else {
     niter <- 250000
@@ -27,7 +28,7 @@ nChains <- 1
 ## next line just loads the NIMBLE library
 ## it's different because I load it different when running on a remote cluster
 if(Sys.info()['nodename'] == 'gandalf') library(nimble, lib.loc = '~/Documents/') else library(nimble)
-
+nimbleOptions(buildInterfacesForCompiledNestedNimbleFunctions=TRUE)
 
 ##library(plyr)   ## NEW not needed ???
 library(VGAM)
@@ -36,7 +37,7 @@ library(coda)
 
 ## NEW
 ## input custom samplers and distributions for your model
-source('defs.R')
+source('../code/defs.R')
 
 
 ## Import data
@@ -296,6 +297,8 @@ inits.list[[1]]$U[6, 4, 3, ]
 ## NEW now uses 'data' also
 ## Nimble model
 fraction.model.calf <- nimbleModel(fraction.code.calf, constants = constants.fraction.calf6, data = data6, inits = inits6)
+Rmodel <- fraction.model.calf
+##fraction.model.calf <- nimbleModel(fraction.code.calf, constants = constants.fraction.calf6, inits = inits6)
 fraction.comp.calf <- compileNimble(fraction.model.calf)
 
 fraction.model.calf$calculate()
@@ -305,16 +308,21 @@ fraction.comp.calf$calculate()
 
 ## Configure, set up, and compile MCMC
 fraction.mcmcConf.calf <- configureMCMC(fraction.model.calf)
+conf <- fraction.mcmcConf.calf
 fraction.mcmcConf.calf$printSamplers()
 ##
+
 ## NEW
 ## this is necessary, too, to assign the RW_multinomial samplers:
 fraction.mcmcConf.calf$removeSamplers('U')
+##fraction.mcmcConf.calf$removeSamplers('pi0')
+##fraction.mcmcConf.calf$removeSamplers('p0')
 for(node in fraction.model.calf$expandNodeNames('U'))
     fraction.mcmcConf.calf$addSampler(target = node, type = 'RW_multinomial')
 ##
-##fraction.mcmcConf5$printSamplers()
+fraction.mcmcConf.calf$printSamplers()
 ##
+
 fraction.mcmcConf.calf$getMonitors()
 fraction.mcmcConf.calf$resetMonitors()
 #fraction.mcmcConf.calf$addMonitors('tide_mort')
@@ -325,8 +333,8 @@ fraction.mcmcConf.calf$addMonitors('U')
 #fraction.mcmcConf.calf$addMonitors('eta')
 ##
 fractionMCMC.calf <- buildMCMC(fraction.mcmcConf.calf)
+Rmcmc <- fractionMCMC.calf
 CfractionMCMC.calf <- compileNimble(fractionMCMC.calf, project = fraction.model.calf, resetFunctions = TRUE)
-
 
 ## nodes pegged at (or near) zero
 nodesToExclude <- c('pi[5, 2]', 'p[5, 2]',
@@ -358,6 +366,50 @@ saveFileName <- paste0('sim3.niter', niter, '.RData')
 save(list = c('samplesList'), file = saveFileName)
 
 
+## XXXXXXXXXXXXXXXXXXX
+lapply(samplesList, dim)
+samples <- samplesList[[1]]
+
+dim(samples)
+dimnames(samples)
+
+trunc <- 50
+trunc <- 200
+trunc <- 500
+samplesTrunc <- samples[1:trunc, ]
+dim(samplesTrunc)
+dimnames(samplesTrunc)
+
+area <- 3
+
+node <- 'p'
+##area <- 1
+nodenames <- paste0(node, '[', 1:6, ', ', area, ']')
+nodenames <- setdiff(nodenames, c('p[6, 2]', 'pi[6, 2]'))
+nodenames
+samplesPlot(samplesTrunc, nodenames)
+
+node <- 'pi'
+##area <- 1
+nodenames <- paste0(node, '[', 1:6, ', ', area, ']')
+nodenames <- setdiff(nodenames, c('p[6, 2]', 'pi[6, 2]'))
+nodenames
+samplesPlot(samplesTrunc, nodenames)
+
+
+year <- 1
+habitat <- 1
+
+for(year in 1:5) {
+    for(habitat in 1:nHabitats) {
+        nodenames <- paste0('U[', year, ', 1, ', habitat, ', ', 1:6, ']')
+        nodenames <- setdiff(nodenames, c('p[6, 2]', 'pi[6, 2]'))
+        samplesPlot(samplesTrunc, nodenames)
+    }
+}
+
+Rmcmc$samplerFunctions[[49]]$target
+Rmcmc$samplerFunctions[[49]]$calcNodes
 
 
 

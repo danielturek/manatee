@@ -2,6 +2,9 @@
 
 # Constants and categories
 # FL regions
+
+
+
 regions <- c('ATL', 'USJ', 'NW', 'SW')
 nRegions <- length(regions)
 # Winter habitat quality
